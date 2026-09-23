@@ -1,42 +1,47 @@
-TARGET_RESOLUTION = (640, 480)  # 480p normalization[cite: 2]
-TARGET_FPS = 30                 # Standardized frame rate[cite: 2]
-CHUNK_DURATION_SEC = 5          # 5 to 10 second segmentation[cite: 2]
-FRAMES_PER_CHUNK = TARGET_FPS * CHUNK_DURATION_SEC
+# config/settings.py
 
+"""
+FrameTune Configuration (ViFM Architecture)
+Centralizes heuristics, models, and 2D text anchors for the spatiotemporal pipeline.
+"""
 
+# ---------------------------------------------------------
+# 1. VIDEO INGESTION & SEGMENTATION
+# ---------------------------------------------------------
+TARGET_RESOLUTION = (640, 480)  
+TARGET_FPS = 30                 
+TRANSNET_THRESHOLD = 0.5       # Sensitivity for cinematic cut detection [1]
 
-M_MIN = 0.0
-M_MAX = 50.0  
+# ---------------------------------------------------------
+# 2. VIDEO FOUNDATION MODEL (ViFM)
+# ---------------------------------------------------------
+# 3D Video-Language Model for spatiotemporal feature extraction [2]
+VIFM_MODEL_ID = "LanguageBind/LanguageBind_Video_merge"
+FRAMES_PER_CLIP = 8            # Number of frames the 3D model extracts per chunk to build the "tubelet"
 
-C_MIN = 0
-C_MAX = 15
+# ---------------------------------------------------------
+# 3. COORDINATE ANCHORS (ENERGY & MOOD)
+# ---------------------------------------------------------
+# The model maps the video chunk directly against these two axes
 
-
-
-CLIP_MODEL_ID = "openai/clip-vit-base-patch32"
-
-# Custom text anchors acting as directional poles on the Mood axis[cite: 2].
-# Instead of one string, we use a list of literal and atmospheric descriptions
-T_BRIGHT_PROMPTS = [
-    "a bright, uplifting, joyful, and energetic scene",
-    "a brightly lit, sunlit environment with vibrant colors",
-    "a highly energetic and fast-paced action sequence",
-    "a happy, positive, and lighthearted video clip",
-    "a cinematic shot with high-key lighting and warm tones"
+# Y-Axis (Energy / Arousal)
+T_ENERGY_HIGH = [
+    "a frantic, chaotic, high-speed action sequence with rapid movement",
+    "intense, fast-paced cinematic motion, shaky camera, and high energy"
 ]
 
-T_DARK_PROMPTS = [
-    "a dark, heavy, bleak, and depressing scene",
-    "a dimly lit, shadowy environment with muted colors",
-    "a slow, tense, and moody cinematic sequence",
-    "a somber, melancholic, and serious video clip",
-    "a cinematic shot with low-key lighting and cold tones"
+T_ENERGY_LOW = [
+    "a slow, static, peaceful, calm, and perfectly still scene",
+    "minimal motion, steady camera, serene pacing, and low energy"
 ]
 
+# X-Axis (Mood / Valence)
+T_MOOD_BRIGHT = [
+    "a bright, joyful, warm, uplifting scene with positive emotion",
+    "high-key lighting, vibrant colors, and a happy, lighthearted atmosphere"
+]
 
-W_MOTION = 0.7   # Raw pixel displacement influence[cite: 2]
-W_CUTS = 0.3     # Editing pace influence[cite: 2]
-
-# Mood Weights: w3 + w4 must = 1.0
-W_SEMANTIC = 0.8 
-W_BRIGHT = 0.2
+T_MOOD_DARK = [
+    "a dark, heavy, bleak, somber, ominous scene with negative emotion",
+    "low-key lighting, muted shadows, and a tense, depressive atmosphere"
+]

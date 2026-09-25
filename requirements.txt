@@ -2,10 +2,10 @@
 torch==2.6.0
 torchvision==0.21.0
 torchaudio==2.6.0
-
+opencv-python
 # Transformers / LanguageBind
-transformers==4.38.2
-languagebind[video]
+transformers>=4.40.0,<5.0.0
+languagebind
 pytorchvideo
 
 # Video processing
@@ -13,7 +13,7 @@ transnetv2-pytorch==1.0.5
 av
 numpy==1.26.4
 ffmpeg-python==0.2.0
-
+ami-decord
 # API / server
 python-multipart
 fastapi

@@ -8,7 +8,7 @@ import time
 API_URL = "http://127.0.0.1:8000/api/v1/video/analyze"
 
 # Ensure you have a small, multi-scene video here
-TEST_VIDEO_PATH = "data/raw/test_scene.mp4"
+TEST_VIDEO_PATH = "video_pipeline/data/raw/test_video.mp4"
 
 def test_pipeline():
     print(f"Sending {TEST_VIDEO_PATH} to the FrameTune API...")

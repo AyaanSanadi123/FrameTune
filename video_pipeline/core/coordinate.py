@@ -23,7 +23,10 @@ class UniversalCoordinateSpace:
 
     def _embed_text(self, prompts: list) -> torch.Tensor:
         """Helper to tokenize, embed, average, and normalize text anchors."""
-        inputs = self.processor(text=prompts, return_tensors="pt", padding=True).to(self.device)
+        inputs = self.processor(
+            text=prompts,
+            return_tensors="pt"
+        ).to(self.device)
         with torch.no_grad():
             features = self.model.get_text_features(**inputs)
             # Average the sentences into a single vector, then normalize

@@ -1,11 +1,9 @@
-# core/segmentation.py
-
 import os
 import cv2
 import ffmpeg
 import numpy as np
-from transnetv2pt import predict_video
-from config.settings import TARGET_FPS
+from transnetv2_pytorch import TransNetV2
+from video_pipeline.config.settings import TARGET_FPS
 
 def segment_video(input_filepath: str, output_dir: str) -> list:
     """
@@ -21,7 +19,14 @@ def segment_video(input_filepath: str, output_dir: str) -> list:
 
     # 2. Run TransNetV2
     print("Detecting cinematic shots with TransNetV2...")
-    raw_scenes = predict_video(input_filepath)
+    model = TransNetV2()
+    raw_scenes = model.detect_scenes(input_filepath)
+
+    # detect_scenes() returns dictionaries containing start/end frames.
+    raw_scenes = [
+        (scene["start_frame"], scene["end_frame"])
+        for scene in raw_scenes
+    ]
     
     # 3. The Merging Algorithm
     merged_scenes = []

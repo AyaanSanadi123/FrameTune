@@ -4,24 +4,50 @@ import av
 import torch
 import numpy as np
 import torch.nn.functional as F
-from transformers import AutoProcessor, AutoModel
-from config.settings import VIFM_MODEL_ID, FRAMES_PER_CLIP
+from languagebind import (
+    LanguageBindVideo,
+    LanguageBindVideoTokenizer,
+    LanguageBindVideoProcessor,
+)
+from languagebind.video.configuration_video import LanguageBindVideoConfig
+from video_pipeline.config.settings import VIFM_MODEL_ID, FRAMES_PER_CLIP
 
 _model = None
 _processor = None
 _device = "cuda" if torch.cuda.is_available() else "cpu"
 
 def initialize_vifm():
-    """
-    Loads the LanguageBind model into VRAM.
-    Called exactly once by the orchestrator.
-    """
     global _model, _processor
-    
-    print(f"Loading 3D Video Foundation Model on {_device}...")
-    _processor = AutoProcessor.from_pretrained(VIFM_MODEL_ID)
-    _model = AutoModel.from_pretrained(VIFM_MODEL_ID).to(_device)
 
+    print(f"Loading 3D Video Foundation Model on {_device}...")
+
+    config = LanguageBindVideoConfig.from_pretrained(VIFM_MODEL_ID)
+
+    tokenizer = LanguageBindVideoTokenizer.from_pretrained(
+        VIFM_MODEL_ID
+    )
+
+    _processor = LanguageBindVideoProcessor(
+        config=config,
+        tokenizer=tokenizer,
+    )
+
+    _model = LanguageBindVideo.from_pretrained(
+        VIFM_MODEL_ID,
+        config=config,
+    ).to(_device)
+
+    # LanguageBind's nested CLIP text/vision configs may not inherit
+    # the attention implementation from the top-level config.
+    _model.config._attn_implementation = "eager"
+    _model.text_model.config._attn_implementation = "eager"
+    _model.vision_model.config._attn_implementation = "eager"
+
+    _model.eval()
+
+    print("ViFM model loaded successfully.")
+
+    
 def extract_tubelet(filepath: str) -> list:
     """
     Uses PyAV to extract exactly 8 uniformly spaced frames from the dynamic chunk.

@@ -1,7 +1,20 @@
-torch==2.2.1
-torchvision==0.17.1
+# Core PyTorch stack
+torch==2.6.0
+torchvision==0.21.0
+torchaudio==2.6.0
+
+# Transformers / LanguageBind
 transformers==4.38.2
-transnetv2-pytorch==1.0.5     # Replaces rigid FFmpeg timer-based chunking [1]
-av                # High-performance video loader for 3D Video Models
+languagebind[video]
+pytorchvideo
+
+# Video processing
+transnetv2-pytorch==1.0.5
+av
 numpy==1.26.4
 ffmpeg-python==0.2.0
+
+# API / server
+python-multipart
+fastapi
+uvicorn

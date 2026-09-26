@@ -18,3 +18,5 @@ ami-decord
 python-multipart
 fastapi
 uvicorn
+supabase
+python-dotenv

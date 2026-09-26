@@ -1,66 +1,67 @@
 # api/routes/video_routes.py
 
 import os
-import shutil
-import uuid
-from fastapi import APIRouter, UploadFile, File, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Request
+from pydantic import BaseModel
+from config.database import supabase_client
 from video_pipeline.orchestrator import process_video_trajectory
 
-# Create the plug-and-play router module
 router = APIRouter()
 
-# Ensure standard working directories exist at runtime
-os.makedirs("data/raw", exist_ok=True)
-os.makedirs("data/processed/chunks", exist_ok=True)
+class AnalyzeRequest(BaseModel):
+    video_id: str
 
 @router.post("/analyze")
-def analyze_video(request: Request, file: UploadFile = File(...)):
+def analyze_video(request: Request, payload: AnalyzeRequest):
     """
-    Receives a video file, runs it through the spatiotemporal ML pipeline,
-    and returns the emotional trajectory mapped to the 2D coordinate grid.
+    Phase 2: Downloads the secured video from cloud storage, runs the ML pipeline, 
+    and saves the trajectory to the database (Single Source of Truth).
     """
-    # Reject non-video files immediately
-    if not file.filename.endswith(('.mp4', '.mov')):
-        raise HTTPException(status_code=400, detail="Only .mp4 and .mov files are supported.")
-
-    # 1. Thread Safety: Append a short UUID so concurrent users don't overwrite each other's files
-    file_id = str(uuid.uuid4())[:8]
-    temp_filepath = f"data/raw/temp_{file_id}_{file.filename}"
+    video_id = payload.video_id
+    temp_filepath = f"data/raw/temp_download_{video_id}.mp4"
 
     try:
-        # 2. Save the incoming network stream directly to the hard drive
-        with open(temp_filepath, "wb") as buffer:
-            shutil.copyfileobj(file.file, buffer)
+        # 1. Query PostgreSQL for the file's exact location in the bucket
+        db_response = supabase_client.table("videos").select("storage_path").eq("id", video_id).execute()
+        if not db_response.data:
+            raise HTTPException(status_code=404, detail="Video record not found.")
+        
+        storage_path = db_response.data[0]["storage_path"]
+
+        # 2. Download the file from Supabase Storage to the local server
+        with open(temp_filepath, "wb") as f:
+            file_data = supabase_client.storage.from_("videos").download(storage_path)
+            f.write(file_data)
 
         # 3. Retrieve the warm ML object from the server's global state
         warm_coord_space = getattr(request.app.state, "coord_space", None)
         if not warm_coord_space:
-            raise HTTPException(
-                status_code=503, 
-                detail="Machine learning models are not warmed up. Server is still booting."
-            )
+            raise HTTPException(status_code=503, detail="Machine learning models are booting.")
 
-        # 4. Execution: Hand the file to the stateless orchestrator
+        # 4. Execute the stateless ML orchestrator
         trajectory = process_video_trajectory(temp_filepath, warm_coord_space)
 
         if not trajectory:
-            raise HTTPException(
-                status_code=422, 
-                detail="Pipeline failed to extract valid cinematic shots from this video."
-            )
+            raise HTTPException(status_code=422, detail="Pipeline failed to extract cinematic shots.")
 
-        # FastAPI automatically converts this dictionary into your final JSON payload
-        return {
-            "filename": file.filename,
+        # 5. Write strictly to the Database
+        supabase_client.table("videos").update({
+            "status": "completed",
             "trajectory": trajectory
+        }).eq("id", video_id).execute()
+
+        return {
+            "message": "Analysis complete. Trajectory saved to database.",
+            "video_id": video_id,
+            "status": "completed"
         }
 
     except Exception as e:
-        # Catch unexpected ML crashes and return a clean HTTP 500 to the frontend
+        # If the pipeline crashes, flag the row as failed so the frontend knows
+        supabase_client.table("videos").update({"status": "failed"}).eq("id", video_id).execute()
         raise HTTPException(status_code=500, detail=f"Pipeline Error: {str(e)}")
 
     finally:
-        # 5. Cleanup: Always delete the raw video file to protect server storage,
-        # even if the orchestrator crashed halfway through.
+        # 6. Always wipe the downloaded file
         if os.path.exists(temp_filepath):
             os.remove(temp_filepath)

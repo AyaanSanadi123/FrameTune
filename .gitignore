@@ -1,4 +1,53 @@
+# =========================
+# Python
+# =========================
 venv/
+.venv/
+__pycache__/
+*.py[cod]
+*.pyo
 
-video_pipeline/data/raw
+# =========================
+# Environment variables
+# =========================
 .env
+.env.*
+!.env.example
+
+# =========================
+# Next.js
+# =========================
+ui/node_modules/
+ui/.next/
+ui/out/
+ui/.vercel/
+
+# Next.js environment files
+ui/.env
+ui/.env.local
+ui/.env.development.local
+ui/.env.test.local
+ui/.env.production.local
+
+# =========================
+# Python project files
+# =========================
+*.log
+
+# =========================
+# OS
+# =========================
+.DS_Store
+Thumbs.db
+
+# =========================
+# IDE
+# =========================
+.vscode/
+.idea/
+
+# =========================
+# Video / generated data
+# =========================
+data/raw/*
+data/processed/*

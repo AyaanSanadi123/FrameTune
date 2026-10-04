@@ -20,18 +20,21 @@ def upload_video(file: UploadFile = File(...)):
     temp_filepath = f"data/raw/temp_{video_id}_{file.filename}"
     storage_path = f"raw_videos/{video_id}_{file.filename}" 
 
+    # Ensure the parent directories exist before writing
+    os.makedirs(os.path.dirname(temp_filepath), exist_ok=True)
+
     try:
         # 1. Save locally to prevent server RAM bloat from massive files
         with open(temp_filepath, "wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
 
         # 2. Upload the saved file to the Supabase Storage bucket
-        with open(temp_filepath, "rb") as f:
-            supabase_client.storage.from_("videos").upload(
-                path=storage_path, 
-                file=f,
-                file_options={"content-type": file.content_type}
-            )
+        # FIXED: Pass the string path directly, removing the 'with open()' wrapper
+        supabase_client.storage.from_("videos").upload(
+            path=storage_path, 
+            file=temp_filepath,
+            file_options={"content-type": file.content_type}
+        )
 
         # 3. Create the ledger entry in PostgreSQL
         supabase_client.table("videos").insert({
@@ -52,4 +55,8 @@ def upload_video(file: UploadFile = File(...)):
     finally:
         # 4. Wipe the local temp file to prevent storage exhaustion
         if os.path.exists(temp_filepath):
-            os.remove(temp_filepath)
+            try:
+                os.remove(temp_filepath)
+            except PermissionError:
+                # Windows explicitly locks files if a library crashes while reading them
+                print(f"[Warning] WinError 32: Could not delete temp file {temp_filepath}. Manual cleanup may be required.")

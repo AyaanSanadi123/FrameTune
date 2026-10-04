@@ -6,6 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 # 1. Import the API Router (The HTTP Department)
 from api.routes.video_routes import router as video_router
+from api.routes.upload_routes import router as upload_router
 
 # 2. Import the ML Engine (The Heavy Lifting)
 from video_pipeline.config import settings
@@ -65,8 +66,9 @@ app.add_middleware(
 )
 
 # Plug the video department into the main infrastructure
-app.include_router(video_router, prefix="/api/v1/video", tags=["Video Pipeline"])
-
+# Plug the video department into the main infrastructure
+app.include_router(video_router, tags=["Video Pipeline"])
+app.include_router(upload_router, tags=["Upload Pipeline"])
 # Health check endpoint for deployment monitoring
 @app.get("/health", tags=["System"])
 def health_check():

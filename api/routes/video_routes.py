@@ -15,7 +15,7 @@ class AnalyzeRequest(BaseModel):
 def analyze_video(request: Request, payload: AnalyzeRequest):
     """
     Phase 2: Downloads the secured video from cloud storage, runs the ML pipeline, 
-    and saves the trajectory to the database (Single Source of Truth).
+    populates the video_chunks vector matrix, and returns UI coordinates to Next.js.
     """
     video_id = payload.video_id
     temp_filepath = f"data/raw/temp_download_{video_id}.mp4"
@@ -38,30 +38,59 @@ def analyze_video(request: Request, payload: AnalyzeRequest):
         if not warm_coord_space:
             raise HTTPException(status_code=503, detail="Machine learning models are booting.")
 
-        # 4. Execute the stateless ML orchestrator
+        # 4. Execute the ML orchestrator
         trajectory = process_video_trajectory(temp_filepath, warm_coord_space)
 
         if not trajectory:
             raise HTTPException(status_code=422, detail="Pipeline failed to extract cinematic shots.")
 
-        # 5. Write strictly to the Database
+        # 5. Separate database vector records from lightweight UI coordinates
+        chunk_rows = []
+        ui_trajectory = []
+
+        for item in trajectory:
+            chunk_rows.append({
+                "video_id": video_id,
+                "chunk_order": item["chunk_order"],
+                "start_time": item["start_time"],
+                "duration": item["duration"],
+                "ui_coordinate": item["ui_coordinate"],
+                "embedding": item["embedding"]
+            })
+
+            ui_trajectory.append({
+                "chunk_order": item["chunk_order"],
+                "start_time": item["start_time"],
+                "duration": item["duration"],
+                "ui_coordinate": item["ui_coordinate"]
+            })
+
+        # 6. Bulk insert vectors into the video_chunks table
+        supabase_client.table("video_chunks").insert(chunk_rows).execute()
+
+        # 7. Update parent video record status
         supabase_client.table("videos").update({
-            "status": "completed",
-            "trajectory": trajectory
+            "status": "analyzed"
         }).eq("id", video_id).execute()
 
         return {
-            "message": "Analysis complete. Trajectory saved to database.",
+            "message": "Analysis complete. Vector matrix saved.",
             "video_id": video_id,
-            "status": "completed"
+            "status": "analyzed",
+            "chunks_count": len(ui_trajectory),
+            "trajectory": ui_trajectory
         }
 
+    except HTTPException:
+        raise
     except Exception as e:
-        # If the pipeline crashes, flag the row as failed so the frontend knows
         supabase_client.table("videos").update({"status": "failed"}).eq("id", video_id).execute()
         raise HTTPException(status_code=500, detail=f"Pipeline Error: {str(e)}")
 
     finally:
-        # 6. Always wipe the downloaded file
+        # 8. Clean up temp master download safely
         if os.path.exists(temp_filepath):
-            os.remove(temp_filepath)
+            try:
+                os.remove(temp_filepath)
+            except OSError:
+                pass

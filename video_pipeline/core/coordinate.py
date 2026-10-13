@@ -1,19 +1,27 @@
-# core/coordinate_map.py
+# video_pipeline/core/coordinate.py
 
 import torch
 import torch.nn.functional as F
+from languagebind import LanguageBindText, LanguageBindTextTokenizer
 
 class UniversalCoordinateSpace:
     """
     A unified 2D mathematical grid based on Russell's Circumplex Model.
-    Projects raw high-dimensional embeddings (from Video or Audio) down to a [0.0 - 1.0] plane.
+    Projects raw high-dimensional embeddings down to a [0.0 - 1.0] plane.
     """
-    def __init__(self, model, processor, device, anchors_config):
-        self.model = model
-        self.processor = processor
+    def __init__(self, device: str, anchors_config):
         self.device = device
+        print(f"[Coordinate Space] Loading Text Foundation Model on {self.device}...")
         
-        # Pre-calculate the absolute poles of the 2D coordinate plane
+        # 1. Load the LanguageBind Text Model (Matching ViFM precision)
+        self.tokenizer = LanguageBindTextTokenizer.from_pretrained(anchors_config.VIFM_MODEL_ID)
+        self.text_model = LanguageBindText.from_pretrained(
+            anchors_config.VIFM_MODEL_ID,
+            torch_dtype=torch.float16 if self.device == "cuda" else torch.float32
+        ).to(self.device)
+        self.text_model.eval()
+        
+        # 2. Pre-calculate the absolute poles of the 2D coordinate plane
         self.anchors = {
             "energy_high": self._embed_text(anchors_config.T_ENERGY_HIGH),
             "energy_low": self._embed_text(anchors_config.T_ENERGY_LOW),
@@ -23,22 +31,25 @@ class UniversalCoordinateSpace:
 
     def _embed_text(self, prompts: list) -> torch.Tensor:
         """Helper to tokenize, embed, average, and normalize text anchors."""
-        inputs = self.processor(
-            text=prompts,
-            return_tensors="pt"
+        inputs = self.tokenizer(
+            prompts,
+            return_tensors="pt",
+            padding=True,
+            truncation=True
         ).to(self.device)
+        
         with torch.no_grad():
-            features = self.model.get_text_features(**inputs)
-            # Average the sentences into a single vector, then normalize
+            # FIXED: LanguageBind syntax
+            outputs = self.text_model(**inputs)
+            features = outputs.text_embeds
+            
             mean_feature = features.mean(dim=0, keepdim=True)
             return F.normalize(mean_feature, p=2, dim=-1)
 
     def project_embedding(self, raw_embedding: torch.Tensor) -> dict:
-        """
-        Takes a raw 512D spatiotemporal vector and projects it onto the Energy/Mood axes.
-        Returns a dictionary with the final 2D coordinates.
-        """
-        # Ensure the incoming vector is normalized before dot product
+        """Takes a raw spatiotemporal vector and projects it onto the axes."""
+        # Ensure identical tensor precision before dot product
+        raw_embedding = raw_embedding.to(dtype=self.text_model.dtype, device=self.device)
         norm_embedding = F.normalize(raw_embedding, p=2, dim=-1)
         
         # Axis 1: Energy Projection
@@ -57,16 +68,14 @@ class UniversalCoordinateSpace:
         }
 
     def build_trajectory(self, temporal_metadata: list, raw_embeddings: list) -> list:
-        """
-        Constructs the final JSON payload for the frontend UI.
-        Matches the dynamic shot metadata (timestamps) with their computed coordinates.
-        """
         trajectory = []
         for meta, embedding in zip(temporal_metadata, raw_embeddings):
             coords = self.project_embedding(embedding)
             trajectory.append({
-                "timestamp": meta["start_time"],
+                "chunk_order": meta.get("chunk_order", 0),
+                "start_time": meta["start_time"],
                 "duration": meta["duration"],
-                "coordinate": [coords["mood"], coords["energy"]]
+                "ui_coordinate": [coords["mood"], coords["energy"]],
+                "embedding": embedding.cpu().numpy().tolist()
             })
         return trajectory

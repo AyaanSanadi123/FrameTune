@@ -43,3 +43,26 @@ ACOUSTIC_CATEGORIES = {
         "heavy, bleak, tense cinematic sound design and impacts"
     ]
 }
+
+
+
+
+# ---------------------------------------------------------
+# 4. 2D COORDINATE ANCHORS (ENERGY & MOOD)
+# ---------------------------------------------------------
+A_ENERGY_HIGH = [
+    "a frantic, chaotic, high-speed rhythmic track with rapid movement",
+    "intense, fast-paced loud dynamic audio with high energy"
+]
+A_ENERGY_LOW = [
+    "a slow, static, peaceful, calm, and perfectly still ambient track",
+    "minimal motion, serene pacing, quiet, and low energy audio"
+]
+A_MOOD_BRIGHT = [
+    "a bright, joyful, warm, uplifting track with positive emotion",
+    "vibrant, happy, lighthearted acoustic atmosphere"
+]
+A_MOOD_DARK = [
+    "a dark, heavy, bleak, somber, ominous track with negative emotion",
+    "low-key, muted, tense, depressive acoustic atmosphere"
+]

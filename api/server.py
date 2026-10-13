@@ -32,8 +32,6 @@ async def lifespan(app: FastAPI):
     # Step C: Inject the warm object into the global app state
     # This makes it instantly available to any API route without reloading
     app.state.coord_space = UniversalCoordinateSpace(
-        model=vifm_engine._model,
-        processor=vifm_engine._processor,
         device=vifm_engine._device,
         anchors_config=settings
     )

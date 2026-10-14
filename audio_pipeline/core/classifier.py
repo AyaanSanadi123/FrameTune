@@ -63,6 +63,5 @@ class ZeroShotAudioAnalyzer:
         
         return {
             "category": category_label,
-            "energy": round(energy_val, 4),
-            "mood": round(mood_val, 4)
+            "ui_coordinate": [round(mood_val, 4), round(energy_val, 4)]
         }
